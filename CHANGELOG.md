@@ -22,35 +22,88 @@
     * Introduced a LaTeX settings panel for setting the global template
       file, defining the LaTeX generation command and testing the LaTeX 
       configuration.
-* Pdf export
-    * The title of the exported pdf will now show the filename without full 
-    path.
-    * Fixed a pdf export bug with dashed lines.
 * Splines
     * Added cubic splines as a drawing tool. Click for settings anchor points
      (knots) and drag to create non-trivial tangents. Backspace key,
      arrow keys, s and Shift+s allow to delete/modifiy the last set knot/its
      tangent. Escape key and double click exit the spline drawing mode.
     * Made the spline tool aware of tapping and user selection.
-    * Made the anchor points of the spline subject to grid snapping.
+    * Made the anchor points of the spline snap to grid.
+* Snapping and selections
+    * Added snapping for vertical space 
+    * Added snapping for moving and resizing selections
+    * Added snapping for recognized shapes (optional setting)
+    * Added an option in the settings to preserve line width while resizing a selection
 * Misc
     * Non-visible refactoring and code cleanup (see #1279 for details)
+    * Switch to std::filesystem
     * Updated translations
-    * Fixed a bug with the pdf cache, which lead to background pages
-      mixed from different pdf-files.
     * Made the eraser more accurate.
     * Added a menu toggle item for showing/hiding the toolbar, bound to F9.
     * Added a new mode for drawing without pen icon.
-    * Fixed a crash resulting from selecting objects on a different layer.
-    * Added a 16 kHz sample rate and fixed some small inconsistencies.
-    * Fixed the mode for attaching a pdf-file to a xopp-file.
-    * Fixed the page count after removing a page.
     * Added a Lua plugin for taking a screenshot and saving it to a file.
+    * Added a Lua plugin for cycling though a color list.
     * Added Ubuntu 20.04 as a release build.
     * Fixed a cursor update bug.
-    * Improved the object selection algorithm.
-    * Added command line options for showing the version.
     * Made the grid size configurable.
+    * Made the language configurable in the preferences
+
+## 1.0.19
+
+More bugfixes and improvements due to help from the various community
+contributors!
+
+* Changed select object algorithm to be more intuitive
+* Added ability for taps with Select Rectangle and Select Region to act like
+  Select Object (#1980)
+* Improved document loading speed (#2002)
+* Added a `--version` command to print the Xournal++ version
+* Added a `libgtk` version display to the About dialog
+* Added a 16kHz sample rate to audio settings and fixed the 91kHz sample rate
+  (#2092)
+* Added file version check for future compatibility (#1991)
+* Changed wording of new page template dialog to be less confusing (#1524)
+* Fixed behavior of "Attach file to the journal" option when choosing "Annotate
+  PDF" (#1725, #2106). This now allows the background PDF and the annotation files to
+  be renamed and moved as long as they 1) share the same file prefix; and 2)
+  share the same relative path.
+* Fixed an issue where clicking the X on the replace file dialog would overwrite
+  the file (#1983)
+* (libcairo >= 1.16 only): Fixed PDF export crashing when the table of contents
+  is empty (#2236).
+* Fixed a bug where the PDF background would not update when loading a new
+  document (#1964)
+* Fixed plugin window causing a crash on Ubuntu 16.04
+* Fixed a bug where the icon would not appear correctly on some desktop
+  environments (#1892)
+* Fixed inconsistent ordering of button keybindings (#1961)
+* Fixed the Enter key not confirming PDF export settings (#1977)
+* Fixed exported PDF title (#2039)
+* Fixed a bug where different page backgrounds can cause PDFs to be exported
+  with the wrong backgrounds (#2119)
+* Fixed a bug where the page number count would not be updated after deleting a
+  page (#2134)
+* Fixed selection object tool not working correctly (#2081) / crashing (#2133)
+  when there are multiple layers
+
+## 1.0.18
+
+* Fixed a crash occurring when recent file entries are invalid (#1730, thanks to
+  @iczero)
+* Fixed translations not being built correctly, causing packaging issues (#1596)
+* Fixed background PDF outlines not being saved in exported PDF (only available
+  when compiled with Cairo 1.16 or newer)
+* Fixed a deadlock occurring when a second PDF with an outline is opened (#1582).
+* Fixed the settings file being written to when it is parsed (#1074, thanks to
+  @Guldoman)
+* Fixed dark mode icons not loading properly (#1767, thanks to @badshah400)
+* Added missing dark mode icons (#1765, thanks to @badshah400)
+* Fixed crash in `Export As ...` on some page range options (#1790)
+* Fixed crash caused by custom colors in toolbar being "too close" (#1659)
+* Windows: Fixed the LaTeX tool always failing to find kpsewhich (#1738). Note
+  that to make this work properly, a console window will now flash briefly
+  before Xournal++ starts.
+
 
 ## 1.0.17
 
