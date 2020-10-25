@@ -3,50 +3,54 @@
 ## 1.1.0 / Nightly (Unreleased)
 
 * **Breaking changes**:
-    * The code has been updated to use C++17 and must now be compiled using a
+    * The code has been updated to use C++17 (#1485) and must now be compiled using a
       supported compiler version, such as GCC 7 or Clang 5 (or newer).
 * Audio playback
-    * Added seeking functionality during playback
+    * Added seeking functionality during playback (#1520)
     * Fixed crashes caused by race conditions in the audio system
     * Fixed bug where gaps in the audio stream could appear while recording
     * Added an error message popup which displays when a recording fails to load
-      or play.
+      or play (#1573)
 * Input System
-    * The new input system is now enabled by default. Should errors occur please
+    * The new input system is now enabled by default (#1560). Should errors occur please
       file a bug report and deactivate it in the settings.
-    * Zoom gesture reimplemented for better compatibility
+    * Zoom gesture reimplemented for better compatibility (#1528)
 * LaTeX
-    * Added support for `\newline
+    * Added support for `\newline (#1469, thanks to @nicolae-stroncea)
     * Introduced a global template file allowing vast customization of the
-      LaTeX tool.
+      LaTeX tool (#1188).
     * Introduced a LaTeX settings panel for setting the global template
       file, defining the LaTeX generation command and testing the LaTeX 
-      configuration.
+      configuration (#1952).
 * Splines
-    * Added cubic splines as a drawing tool. Click for settings anchor points
-     (knots) and drag to create non-trivial tangents. Backspace key,
-     arrow keys, s and Shift+s allow to delete/modifiy the last set knot/its
-     tangent. Escape key and double click exit the spline drawing mode.
-    * Made the spline tool aware of tapping and user selection.
-    * Made the anchor points of the spline snap to grid.
+    * Added cubic splines as a drawing tool (#1688, #1798). Click for settings anchor 
+      points (knots) and drag to create non-trivial tangents. Backspace key,
+      arrow keys, s and Shift+s allow to delete/modifiy the last set knot/its
+      tangent. Escape key and double click exit the spline drawing mode.
+    * Made the spline tool aware of tapping and user selection (#1528, #1861).
+    * Made the anchor points of the spline snap to grid (#1861).
 * Snapping and selections
-    * Added snapping for vertical space 
-    * Added snapping for moving and resizing selections
-    * Added snapping for recognized shapes (optional setting)
-    * Added an option in the settings to preserve line width while resizing a selection
+    * Added snapping for vertical space (#2011) 
+    * Added snapping for moving and resizing selections (#1972, #2011)
+    * Added snapping for recognized shapes (optional setting; #2011) 
+    * Added an option in the settings to preserve line width while resizing a selection (#2011)
 * Misc
     * Non-visible refactoring and code cleanup (see #1279 for details)
-    * Switch to std::filesystem
+    * Switch to std::filesystem (#2150, thanks to @aDogCalledSpot)
     * Updated translations
-    * Made the eraser more accurate.
-    * Added a menu toggle item for showing/hiding the toolbar, bound to F9.
-    * Added a new mode for drawing without pen icon.
-    * Added a Lua plugin for taking a screenshot and saving it to a file.
-    * Added a Lua plugin for cycling though a color list.
-    * Added Ubuntu 20.04 as a release build.
-    * Fixed a cursor update bug.
-    * Made the grid size configurable.
-    * Made the language configurable in the preferences
+    * Made the eraser more accurate (#1818).
+    * Added a menu toggle item for showing/hiding the toolbar, bound to F9 
+      (#2112, thanks to @duncanawoods).
+    * Added a new mode for drawing without pen icon 
+      (#2111, thanks to @duncanawoods).
+    * Added a Lua plugin for taking a screenshot and saving it to a file
+      (#2086, thanks to @createyourpersonalaccount).
+    * Added a Lua plugin for cycling though a color list (#1835, #2251).
+    * Added Ubuntu 20.04 as a release build (#2060).
+    * Fixed a cursor update bug (#1954).
+    * Made the grid size configurable (#1920).
+    * Made the language configurable in the preferences 
+      (#2188, thanks to @aDogCalledSpot)
 
 ## 1.0.19
 
