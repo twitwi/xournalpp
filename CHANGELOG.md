@@ -51,6 +51,8 @@
     * Made the grid size configurable (#1920).
     * Made the language configurable in the preferences 
       (#2188, thanks to @aDogCalledSpot)
+    * Made the keyboard shortcuts work when the menubar is hidden
+      (#2324, thanks to @duncanawoods)
 
 ## 1.0.19
 
