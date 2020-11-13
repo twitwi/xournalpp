@@ -24,6 +24,10 @@
 #include "control/tools/EditSelection.h"
 #include "gui/XournalView.h"
 
+#include <libsoup/soup.h>
+SoupWebsocketConnection* shareConn = NULL;
+
+
 template <typename T>
 T* GetPtr(T* ptr) {
     return ptr;
@@ -82,23 +86,81 @@ void handle(const char* what, const UndoAction& action, Control* control) {
     if (auto a = dynamic_cast<const ColorUndoAction*>(ap)) {
         g_message("OK COLOR");
 
+    } else if (auto a = dynamic_cast<const InsertUndoAction*>(ap)) {
+        g_message("OK INSERT");
+        auto e = a->__element();
+
+        ObjectOutputStream out(new BinObjectEncoding());
+        out.writeString(PROJECT_STRING);
+
+        int pageNr = control->getCurrentPageNo();
+        MainWindow* win = control->getWindow();
+        XojPageView* view = win->getXournal()->getViewFor(pageNr);
+        PageRef page = control->getCurrentPage();
+        auto sel = new EditSelection(control->getUndoRedoHandler(), page, view);
+        sel->addElement(e);
+        sel->serialize(out);
+
+        //auto view = control->getWindow()->getXournal()->getViewFor(0);
+        //EditSelection sel(control->getUndoRedoHandler(), e, (XojPageView*)NULL, control->getCurrentPage());
+        //sel.addElement(e);
+        //auto sel = control->getWindow()->getXournal()->getSelection();
+        //sel->addElement(e);
+        //sel->serialize(out);
+        //char tmp[100048]="";
+        //strcpy(tmp, g_string_free(out.getStr(), FALSE));
+        auto* o = out.getStr();
+        g_message("%d", o->len); // TODO should then g_free()
+
+        FILE * fp = fopen(".xournal-test-binary.bin", "w");
+    	fwrite(o->str, 1, o->len, fp);
+    	fclose(fp);
+
+        if (shareConn) {
+            soup_websocket_connection_send_binary(shareConn, (gconstpointer)o->str, (gsize)o->len);
+        }
+    }
+    g_message("---- ----");
+}
+
+void handlePtr(const char* what, UndoActionPtr& action, Control* control) {
+    handle(what, *action.get(), control);
+}
+void cbMessage(SoupWebsocketConnection *self, gint type, GBytes* message, gpointer user_data) {
+    //g_message("MESSAGE!!!! %d %d %d", type, SOUP_WEBSOCKET_DATA_TEXT, SOUP_WEBSOCKET_DATA_BINARY);
+    //g_message(*(const char**) message);
+    //g_message((const char*)user_data);
+    auto* control = (Control*) user_data;
+    const char* buffer = NULL;
+    char* tofree = NULL;
+    long unsigned lSize = 0;
+
+    if (type == SOUP_WEBSOCKET_DATA_TEXT
+    && ! strcmp("GO", (const char*) g_bytes_get_data(message, NULL))) {
         FILE* pFile = fopen(".xournal-test-binary.bin5", "rb");
         //if (pFile==NULL) {fputs ("File error",stderr); exit (1);}
         // I'd rather crash
 
         // obtain file size:
         fseek(pFile , 0 , SEEK_END);
-        long lSize = ftell(pFile);
+        lSize = ftell(pFile);
         rewind(pFile);
 
         // allocate memory to contain the whole file:
-        char* buffer = (char*) malloc (sizeof(char)*lSize);
+        char* buf;
+        buffer = tofree = buf = (char*) malloc (sizeof(char)*lSize);
         if (buffer == NULL) {fputs ("Memory error",stderr); exit (2);}
 
         // copy the file into the buffer:
-        size_t result = fread(buffer, 1, lSize, pFile);
+        size_t result = fread(buf, 1, lSize, pFile);
         if (result != lSize) {fputs ("Reading error",stderr); exit (3);}
+        fclose (pFile);
+    }
+    if (type == SOUP_WEBSOCKET_DATA_BINARY) {
+        buffer = (const char*) g_bytes_get_data(message, &lSize);
+    }
 
+    if (buffer) {
         ObjectInputStream in;
         if (in.read(buffer, lSize)) {
 
@@ -162,47 +224,27 @@ void handle(const char* what, const UndoAction& action, Control* control) {
             //control->getWindow()->getXournal()->getSelection();
             // this->page->fireElementChanged(this->element);
         }
-        fclose (pFile);
-        free (buffer);
-
-    } else if (auto a = dynamic_cast<const InsertUndoAction*>(ap)) {
-        g_message("OK INSERT");
-        auto e = a->__element();
-
-        ObjectOutputStream out(new BinObjectEncoding());
-        out.writeString(PROJECT_STRING);
-
-        int pageNr = control->getCurrentPageNo();
-        MainWindow* win = control->getWindow();
-        XojPageView* view = win->getXournal()->getViewFor(pageNr);
-        PageRef page = control->getCurrentPage();
-        auto sel = new EditSelection(control->getUndoRedoHandler(), page, view);
-        sel->addElement(e);
-        sel->serialize(out);
-
-        //auto view = control->getWindow()->getXournal()->getViewFor(0);
-        //EditSelection sel(control->getUndoRedoHandler(), e, (XojPageView*)NULL, control->getCurrentPage());
-        //sel.addElement(e);
-        //auto sel = control->getWindow()->getXournal()->getSelection();
-        //sel->addElement(e);
-        //sel->serialize(out);
-        //char tmp[100048]="";
-        //strcpy(tmp, g_string_free(out.getStr(), FALSE));
-        auto* o = out.getStr();
-        g_message("%d", o->len); // TODO should then g_free()
-
-        FILE * fp = fopen(".xournal-test-binary.bin", "w");
-    	fwrite(o->str, 1, o->len, fp);
-    	fclose(fp);
+        if (tofree) free(tofree);
     }
-    g_message("---- ----");
 }
-
-void handlePtr(const char* what, UndoActionPtr& action, Control* control) {
-    handle(what, *action.get(), control);
+void cbConnect(GObject *source_object, GAsyncResult *res, gpointer user_data) {
+    g_message("WEBSO!!!!");
+    SoupWebsocketConnection* conn = soup_session_websocket_connect_finish((SoupSession*)source_object, res, NULL);
+    shareConn = conn;
+    //soup_websocket_connection_send_text(conn, "HELLO SOUP");
+    //soup_websocket_connection_send_binary(conn, "HI\0HI", 5);
+    g_signal_connect(conn, "message", GCallback(cbMessage), user_data);
 }
+UndoRedoHandler::UndoRedoHandler(Control* control): control(control) {
 
-UndoRedoHandler::UndoRedoHandler(Control* control): control(control) {}
+
+    // TEST websocket client
+    auto session = soup_session_new();
+    auto url = soup_message_new("GET", "ws://localhost:14444");
+
+    soup_session_websocket_connect_async(session, url, NULL, NULL, NULL, &cbConnect, this->control);
+
+}
 
 UndoRedoHandler::~UndoRedoHandler() { clearContents(); }
 

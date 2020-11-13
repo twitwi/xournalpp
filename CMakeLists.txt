@@ -132,6 +132,15 @@ pkg_check_modules(SNDFILE REQUIRED "sndfile >= 1.0.25")
 add_includes_ldflags ("${SNDFILE_LDFLAGS}" "${SNDFILE_INCLUDE_DIRS}")
 
 ## Additional features ##
+pkg_check_modules(SNDFILE REQUIRED "sndfile >= 1.0.25")
+add_includes_ldflags ("${SNDFILE_LDFLAGS}" "${SNDFILE_INCLUDE_DIRS}")
+
+
+# libsoup (websockets)
+pkg_check_modules(LIBSOUP REQUIRED libsoup-2.4)
+add_includes_ldflags ("${LIBSOUP_LDFLAGS}" "${LIBSOUP_INCLUDE_DIRS}")
+
+
 
 # CppUnit
 option (ENABLE_CPPUNIT "Build CppUnit test instead of xournalpp application" OFF)
