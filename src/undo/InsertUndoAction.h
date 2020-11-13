@@ -28,6 +28,8 @@ public:
 
     virtual string getText();
 
+    auto __element() const { return element; }
+
 private:
     Layer* layer;
     Element* element;

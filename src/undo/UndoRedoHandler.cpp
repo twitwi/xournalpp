@@ -1,3 +1,4 @@
+
 #include "UndoRedoHandler.h"
 
 #include <algorithm>
@@ -9,6 +10,14 @@
 #include "config.h"
 #include "i18n.h"
 
+#include "ColorUndoAction.h"
+#include "InsertUndoAction.h"
+#include "serializing/BinObjectEncoding.h"
+#include "serializing/HexObjectEncoding.h"
+#include "serializing/ObjectInputStream.h"
+#include "serializing/ObjectOutputStream.h"
+#include "control/tools/EditSelection.h"
+#include "gui/XournalView.h"
 
 template <typename T>
 T* GetPtr(T* ptr) {
@@ -23,14 +32,15 @@ T* GetPtr(std::unique_ptr<T> ptr) {
 template <typename PtrType>
 inline void printAction(PtrType& action) {
     if (action) {
-        g_message("%" PRIu64 " / %s", static_cast<uint64_t>(GetPtr(action)), action->getClassName());
+        //g_message("%" PRIu64 " / %s", static_cast<uint64_t>(GetPtr(action)), action->getClassName());
+        g_message("%" PRIu64 " / %s", (uint64_t)(action.get()), action->getClassName().c_str());
     } else {
         g_message("(null)");
     }
 }
 
 template <typename PtrType>
-inline void printUndoList(std::deque<PtrType> list) {
+inline void printUndoList(std::deque<PtrType>& list) {
     for (auto&& action: list) {
         printAction(action);
     }
@@ -52,9 +62,80 @@ void UndoRedoHandler::printContents() {
         g_message("savedUndo");            // NOLINT
         if (this->savedUndo)               // NOLINT
         {                                  // NOLINT
-            printAction(this->savedUndo);  // NOLINT
+            //printAction(this->savedUndo);  // NOLINT
         }                                  // NOLINT
     }
+}
+
+void handle(const char* what, const UndoAction& action, Control* control) {
+    auto* ap = &action;
+    g_message(what);
+    g_message(action.getClassName().c_str());
+    if (auto a = dynamic_cast<const ColorUndoAction*>(ap)) {
+        g_message("OK COLOR");
+
+        FILE* pFile = fopen(".xournal-test-binary.bin3", "rb");
+        //if (pFile==NULL) {fputs ("File error",stderr); exit (1);}
+        // I'd rather crash
+
+        // obtain file size:
+        fseek(pFile , 0 , SEEK_END);
+        long lSize = ftell(pFile);
+        rewind(pFile);
+
+        // allocate memory to contain the whole file:
+        char* buffer = (char*) malloc (sizeof(char)*lSize);
+        if (buffer == NULL) {fputs ("Memory error",stderr); exit (2);}
+
+        // copy the file into the buffer:
+        size_t result = fread(buffer, 1, lSize, pFile);
+        if (result != lSize) {fputs ("Reading error",stderr); exit (3);}
+
+        ObjectInputStream in;
+        if (in.read(buffer, lSize)) {
+            control->clipboardPasteXournal(in); // why not refreshing???
+            control->clearSelection(); // incurs a refresh, ok
+            //control->getWindow()->getXournal()->getSelection();
+            // this->page->fireElementChanged(this->element);
+        }
+        fclose (pFile);
+        free (buffer);
+
+    } else if (auto a = dynamic_cast<const InsertUndoAction*>(ap)) {
+        g_message("OK INSERT");
+        auto e = a->__element();
+
+        ObjectOutputStream out(new BinObjectEncoding());
+        out.writeString(PROJECT_STRING);
+
+        int pageNr = control->getCurrentPageNo();
+        auto* win = control->getWindow();
+        auto* view = win->getXournal()->getViewFor(pageNr);
+        auto page = control->getCurrentPage();
+        auto sel = new EditSelection(control->getUndoRedoHandler(), page, view);
+        sel->addElement(e);
+        sel->serialize(out);
+
+        //auto view = control->getWindow()->getXournal()->getViewFor(0);
+        //EditSelection sel(control->getUndoRedoHandler(), e, (XojPageView*)NULL, control->getCurrentPage());
+        //sel.addElement(e);
+        //auto sel = control->getWindow()->getXournal()->getSelection();
+        //sel->addElement(e);
+        //sel->serialize(out);
+        //char tmp[100048]="";
+        //strcpy(tmp, g_string_free(out.getStr(), FALSE));
+        auto* o = out.getStr();
+        g_message("%d", o->len); // TODO should then g_free()
+
+        FILE * fp = fopen(".xournal-test-binary.bin", "w");
+    	fwrite(o->str, 1, o->len, fp);
+    	fclose(fp);
+    }
+    g_message("---- ----");
+}
+
+void handlePtr(const char* what, UndoActionPtr& action, Control* control) {
+    handle(what, *action.get(), control);
 }
 
 UndoRedoHandler::UndoRedoHandler(Control* control): control(control) {}
@@ -96,6 +177,8 @@ void UndoRedoHandler::undo() {
     g_assert_true(this->undoList.back());
 
     auto& undoAction = *this->undoList.back();
+    handle("UNDOING", undoAction, control);
+
     this->redoList.emplace_back(std::move(this->undoList.back()));
     this->undoList.pop_back();
 
@@ -124,6 +207,7 @@ void UndoRedoHandler::redo() {
     g_assert_true(this->redoList.back());
 
     UndoAction& redoAction = *this->redoList.back();
+    handle("REDOING", redoAction, control);
 
     this->undoList.emplace_back(std::move(this->redoList.back()));
     this->redoList.pop_back();
@@ -156,6 +240,9 @@ void UndoRedoHandler::addUndoAction(UndoActionPtr action) {
     if (!action) {
         return;
     }
+    
+    handlePtr("DONE", action, control);
+
 
     this->undoList.emplace_back(std::move(action));
     clearRedo();
