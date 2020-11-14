@@ -26,6 +26,7 @@
 
 #include <libsoup/soup.h>
 SoupWebsocketConnection* shareConn = NULL;
+#include "PageLayerPosEntry.h"
 
 
 template <typename T>
@@ -75,6 +76,14 @@ void UndoRedoHandler::printContents() {
         }                                  // NOLINT
     }
 }
+void UndoRedoHandler::addUndoActionSYNC(UndoActionPtr action) {
+    this->undoList.emplace_back(std::move(action));
+    clearRedo();
+    fireUpdateUndoRedoButtons(this->undoList.back()->getPages());
+
+    printContents();
+}
+
 
 void handle(const char* what, const UndoAction& action, Control* control) {
 
@@ -84,10 +93,37 @@ void handle(const char* what, const UndoAction& action, Control* control) {
     g_message(what);
     g_message(action.getClassName().c_str());
     if (auto a = dynamic_cast<const ColorUndoAction*>(ap)) {
-        g_message("OK COLOR");
+    } else if (auto a = dynamic_cast<const AddUndoAction*>(ap)) {
+        g_message("ADD");
 
+        ObjectOutputStream out(new BinObjectEncoding());
+        out.writeString(PROJECT_STRING);
+
+        int pageNr = control->getCurrentPageNo();
+        MainWindow* win = control->getWindow();
+        XojPageView* view = win->getXournal()->getViewFor(pageNr);
+        PageRef page = control->getCurrentPage();
+        auto sel = new EditSelection(control->getUndoRedoHandler(), page, view);
+
+        for (GList* l = a->__elements(); l != nullptr; l = l->next) {
+            auto e = static_cast<PageLayerPosEntry<Element>*>(l->data);
+            sel->addElement(e->element);
+        }
+
+        //sel->addElement(e);
+        sel->serialize(out);
+
+        auto* o = out.getStr();
+        g_message("%d", o->len); // TODO should then g_free()
+        /*
+        FILE * fp = fopen(".xournal-test-binary.bin", "w");
+    	fwrite(o->str, 1, o->len, fp);
+    	fclose(fp);
+        */
+        if (shareConn) {
+            soup_websocket_connection_send_binary(shareConn, (gconstpointer)o->str, (gsize)o->len);
+        }
     } else if (auto a = dynamic_cast<const InsertUndoAction*>(ap)) {
-        g_message("OK INSERT");
         auto e = a->__element();
 
         ObjectOutputStream out(new BinObjectEncoding());
@@ -101,21 +137,13 @@ void handle(const char* what, const UndoAction& action, Control* control) {
         sel->addElement(e);
         sel->serialize(out);
 
-        //auto view = control->getWindow()->getXournal()->getViewFor(0);
-        //EditSelection sel(control->getUndoRedoHandler(), e, (XojPageView*)NULL, control->getCurrentPage());
-        //sel.addElement(e);
-        //auto sel = control->getWindow()->getXournal()->getSelection();
-        //sel->addElement(e);
-        //sel->serialize(out);
-        //char tmp[100048]="";
-        //strcpy(tmp, g_string_free(out.getStr(), FALSE));
         auto* o = out.getStr();
         g_message("%d", o->len); // TODO should then g_free()
-
+        /*
         FILE * fp = fopen(".xournal-test-binary.bin", "w");
     	fwrite(o->str, 1, o->len, fp);
     	fclose(fp);
-
+        */
         if (shareConn) {
             soup_websocket_connection_send_binary(shareConn, (gconstpointer)o->str, (gsize)o->len);
         }
@@ -171,8 +199,7 @@ void cbMessage(SoupWebsocketConnection *self, gint type, GBytes* message, gpoint
             XojPageView* view = win->getXournal()->getViewFor(pageNr);
             auto undoRedo = control->getUndoRedoHandler();
             auto selection = new EditSelection(undoRedo, page, view);
-
-            win->getXournal()->setSelection(selection);
+            vector<Element*> elements;
 
             std::unique_ptr<Element> element;
             string version = in.readString();
@@ -181,6 +208,7 @@ void cbMessage(SoupWebsocketConnection *self, gint type, GBytes* message, gpoint
             }
 
             selection->readSerialized(in);
+
             //control->getDocument()->unlock();
 
             int count = in.readInt();
@@ -205,19 +233,21 @@ void cbMessage(SoupWebsocketConnection *self, gint type, GBytes* message, gpoint
 
                 element->readSerialized(in);
 
+                layer->addElement(element.get());
                 syncAddUndoAction->addElement(layer, element.get(), layer->indexOf(element.get()));
                 // Todo: unique_ptr
-                selection->addElement(element.release(), Layer::InvalidElementIndex);
+                //selection->addElement(element.release(), Layer::InvalidElementIndex);
+                elements.emplace_back(element.release());
             }
-            g_message("ADD UNDO ACTION");
-            undoRedo->addUndoAction(std::move(syncAddUndoAction));
 
-            g_message("CLEAR SEL");
-            control->clearSelection();
-            //selection->moveSelection(0, 0);
-            //selection->mouseUp();
-            //win->getXournal()->repaintSelection();
-            control->clearSelection(); // causes a refresh, ok
+            // recreate a selection so that the bounding box is properly computed (bug?)
+            selection = new EditSelection(undoRedo, elements, view, page);
+            win->getXournal()->setSelection(selection); // add to the document
+            control->clearSelection(); // deselect
+            undoRedo->addUndoActionSYNC(std::move(syncAddUndoAction)); // allow undo of it
+            //view->rerenderPage();
+            //control->getScheduler()->addRerenderPage(view);
+            //selection->
 
             //control->clipboardPasteXournal(in); // why not refreshing???
             //control->clearSelection(); // incurs a refresh, ok

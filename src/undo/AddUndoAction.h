@@ -34,6 +34,8 @@ public:
 
     string getText() override;
 
+    auto __elements() const { return elements; }
+
 private:
     GList* elements = nullptr;
     bool eraser = false;
