@@ -86,7 +86,8 @@ LiveSynchronizer::LiveSynchronizer(Control* control) : control(control), registe
 
     // TEST websocket client
     auto session = soup_session_new();
-    auto url = soup_message_new("GET", "ws://localhost:14444");
+    //auto url = soup_message_new("GET", "ws://localhost:14444");
+    auto url = soup_message_new("GET", "ws://xournal.heeere.com");
 
     soup_session_websocket_connect_async(session, url, NULL, NULL, NULL, &cbConnect, this->control);
 
