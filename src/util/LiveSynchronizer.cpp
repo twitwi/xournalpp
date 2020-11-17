@@ -19,6 +19,8 @@
 #include "gui/XournalView.h"
 #include "gui/MainWindow.h"
 #include "control/Control.h"
+#include "model/DocumentChangeType.h"
+#include "control/jobs/XournalScheduler.h"
 
 #include <libsoup/soup.h>
 SoupWebsocketConnection* shareConn = NULL;
@@ -26,7 +28,7 @@ SoupWebsocketConnection* shareConn = NULL;
 
 
 void LiveSynchronizer::handle(const char* what, const UndoAction& action, Control* control) {
-
+    return;
     auto* ap = &action;
     g_message(what);
     g_message(action.getClassName().c_str());
@@ -92,6 +94,7 @@ void LiveSynchronizer::handle(const char* what, const UndoAction& action, Contro
 }
 
 void LiveSynchronizer::handlePtr(const char* what, UndoActionPtr& action, Control* control) {
+    return;
     handle(what, *action.get(), control);
 }
 void cbMessage(SoupWebsocketConnection *self, gint type, GBytes* message, gpointer user_data) {
@@ -129,6 +132,24 @@ void cbMessage(SoupWebsocketConnection *self, gint type, GBytes* message, gpoint
     }
 
     if (buffer) {
+        g_message("RECV... %x", user_data);
+        ObjectInputStream in;
+        if (in.read(buffer, lSize)) {
+            string version = in.readString();
+            if (version != PROJECT_STRING) {
+                g_warning("Sync from Xournal Version %s to Xournal Version %s", version.c_str(), PROJECT_STRING);
+            }
+            auto page = control->getCurrentPage();
+            auto layer = page->getSelectedLayer();
+            while (layer->getElements()->size() > 0) {
+                layer->removeElement((*layer->getElements())[0], true);
+            }
+            layer->readSerialized(in);
+            control->firePageChanged(control->getCurrentPageNo());
+            // TODO action? -> not really because no sync of ids anyway
+        }
+    }
+    if (false && buffer) { // version with selection
         ObjectInputStream in;
         if (in.read(buffer, lSize)) {
 
@@ -206,8 +227,9 @@ void cbConnect(GObject *source_object, GAsyncResult *res, gpointer user_data) {
     g_signal_connect(conn, "message", GCallback(cbMessage), user_data);
 }
 
-LiveSynchronizer::LiveSynchronizer(Control* control) : control(control) {
+LiveSynchronizer::LiveSynchronizer(Control* control) : control(control), registeredUndoRedoListener(false) {
 
+    DocumentListener::registerListener(control);
 
     // TEST websocket client
     auto session = soup_session_new();
@@ -215,5 +237,115 @@ LiveSynchronizer::LiveSynchronizer(Control* control) : control(control) {
 
     soup_session_websocket_connect_async(session, url, NULL, NULL, NULL, &cbConnect, this->control);
 
+}
 
+void LiveSynchronizer::documentChanged(DocumentChangeType type) {
+    g_message("DOC CHANGED %d", type);
+}
+
+void LiveSynchronizer::pageSizeChanged(size_t page) {
+    g_message("pageSizeChanged ... %d", page);
+}
+void LiveSynchronizer::pageChanged(size_t page)  {
+    g_message("pageChanged ... %d", page);
+}
+void LiveSynchronizer::pageInserted(size_t page) {
+    g_message("pageInserted ... %d %d", page);
+}
+void LiveSynchronizer::pageDeleted(size_t page) {
+    g_message("pageDeleted ... %d", page);
+}
+void LiveSynchronizer::pageSelected(size_t page) {
+    g_message("pageSelected ... %d", page);
+    PageListener::unregisterListener();
+    this->currentPage = page;
+    PageListener::registerListener(control->getDocument()->getPage(page));
+    if (!this->registeredUndoRedoListener) {
+        this->registeredUndoRedoListener = true;
+        control->getUndoRedoHandler()->addUndoRedoListener(this);
+    }
+}
+
+
+class SendJob: public Job {
+    public:
+    ~SendJob() = default;
+
+    LiveSynchronizer* livesync;
+    SendJob(LiveSynchronizer* livesync) : livesync(livesync) {
+        livesync->control->getScheduler()->addJob(this, JOB_PRIORITY_NONE);
+    }
+    virtual void run() {
+        livesync->sendPageUpdate();
+    }
+    auto getType() -> JobType { return JOB_TYPE_AUTOSAVE; }
+
+};
+/*
+bool scheduleJob(LiveSynchronizer* that) {
+    return that->scheduleJob();
+}*/
+bool LiveSynchronizer::scheduleJob() {
+    auto sel = control->getWindow()->getXournal()->getSelection();
+    if (sel != nullptr && sel->getElements()->size() > 0) {
+        g_message("wait...");
+        return true;
+    }
+    auto* job = new SendJob(this);
+    job->unref();
+    return false;
+}
+
+void LiveSynchronizer::maybeSendPageUpdate() {
+    g_timeout_add(20, (GSourceFunc) &LiveSynchronizer::scheduleJob, this);
+    //this->sendPageUpdate();
+}
+void LiveSynchronizer::sendPageUpdate() {
+
+    auto page = this->control->getDocument()->getPage(this->currentPage);
+    auto layer = page->getSelectedLayer();
+    auto sel = control->getWindow()->getXournal()->getSelection();
+    g_message("SEND... %x", layer);
+
+    ObjectOutputStream out(new BinObjectEncoding());
+    out.writeString(PROJECT_STRING);
+
+    /*
+    if (sel) sel->mouseUp();
+    if (sel) for (Element* e: *sel->getElements()) {
+        layer->addElement(e);
+    }*/
+    layer->serialize(out);
+    /*
+    if (sel) for (Element* e: *sel->getElements()) {
+        layer->removeElement(e, false);
+    }*/
+    auto* o = out.getStr();
+    g_message("%d", o->len); // TODO should then g_free()?
+    if (shareConn) {
+        soup_websocket_connection_send_binary(shareConn, (gconstpointer)o->str, (gsize)o->len);
+    }
+}
+void LiveSynchronizer::rectChanged(Rectangle<double>& rect) {
+    g_message("rectChanged...");
+}
+void LiveSynchronizer::rangeChanged(Range& range) {
+    g_message("rangeChanged...");
+}
+void LiveSynchronizer::elementChanged(Element* elem) {
+    g_message("elementChanged...");
+    this->maybeSendPageUpdate();
+}
+void LiveSynchronizer::pageChanged() {
+    g_message("pageChanged...");
+}
+
+
+
+void LiveSynchronizer::undoRedoChanged() {
+    g_message("undoRedoChanged---");
+}
+void LiveSynchronizer::undoRedoPageChanged(PageRef page) {
+    g_message("undoRedoPageChanged---");
+    this->maybeSendPageUpdate();
 }
