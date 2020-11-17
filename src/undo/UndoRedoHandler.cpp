@@ -111,7 +111,6 @@ void UndoRedoHandler::undo() {
     g_assert_true(this->undoList.back());
 
     auto& undoAction = *this->undoList.back();
-    //handle("UNDOING", undoAction, control);
 
     this->redoList.emplace_back(std::move(this->undoList.back()));
     this->undoList.pop_back();
@@ -141,7 +140,6 @@ void UndoRedoHandler::redo() {
     g_assert_true(this->redoList.back());
 
     UndoAction& redoAction = *this->redoList.back();
-    if (livesync) livesync->handle("REDOING", redoAction, control);
 
     this->undoList.emplace_back(std::move(this->redoList.back()));
     this->redoList.pop_back();
@@ -175,9 +173,6 @@ void UndoRedoHandler::addUndoAction(UndoActionPtr action) {
         return;
     }
     
-    if (livesync) livesync->handlePtr("DONE", action, control);
-
-
     this->undoList.emplace_back(std::move(action));
     clearRedo();
     fireUpdateUndoRedoButtons(this->undoList.back()->getPages());

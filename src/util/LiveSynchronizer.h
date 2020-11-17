@@ -8,8 +8,6 @@
 #include "model/PageListener.h"
 
 
-class UndoAction;
-using UndoActionPtr = std::unique_ptr<UndoAction>;
 class Control;
 class SendJob;
 
@@ -20,9 +18,6 @@ class LiveSynchronizer :
 
 public:
     LiveSynchronizer(Control *control);
-
-    void handle(const char* what, const UndoAction& action, Control* control);
-    void handlePtr(const char* what, UndoActionPtr& action, Control* control);
 
 
     // DocumentListener
