@@ -1,6 +1,13 @@
 #include "Layer.h"
 
 #include "Stacktrace.h"
+#include "Text.h"
+#include "TexImage.h"
+#include "Image.h"
+#include "Stroke.h"
+
+#include "serializing/ObjectInputStream.h"
+#include "serializing/ObjectOutputStream.h"
 
 Layer::Layer() = default;
 
@@ -107,3 +114,42 @@ auto Layer::isVisible() const -> bool { return visible; }
 void Layer::setVisible(bool visible) { this->visible = visible; }
 
 auto Layer::getElements() -> vector<Element*>* { return &this->elements; }
+
+void Layer::serialize(ObjectOutputStream& out) {
+    out.writeObject("Layer");
+
+    out.writeInt(this->visible);
+
+    out.writeInt(this->elements.size());
+    for (Element* e: this->elements) {
+        e->serialize(out);
+    }
+
+    out.endObject();
+}
+
+void Layer::readSerialized(ObjectInputStream& in) {
+    in.readObject("Layer");
+
+    this->visible = static_cast<bool>(in.readInt());
+
+    int nElement = in.readInt();
+    for (int i = 0; i < nElement; i++) {
+        string name = in.getNextObjectName();
+        std::unique_ptr<Element> element;
+        if (name == "Stroke") {
+            element = std::make_unique<Stroke>();
+        } else if (name == "Image") {
+            element = std::make_unique<Image>();
+        } else if (name == "TexImage") {
+            element = std::make_unique<TexImage>();
+        } else if (name == "Text") {
+            element = std::make_unique<Text>();
+        } else {
+        }
+        element->readSerialized(in);
+        this->elements.emplace_back(element.release());
+    }
+
+    in.endObject();
+}

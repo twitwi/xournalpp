@@ -14,11 +14,13 @@
 #include <string>
 #include <vector>
 
+#include "serializing/Serializeable.h"
+
 #include "Element.h"
 #include "XournalType.h"
 
 
-class Layer {
+class Layer: public Serializeable {
 public:
     Layer();
     virtual ~Layer();
@@ -75,6 +77,11 @@ public:
      * Creates a deep copy of this Layer by copying all of the Element%s contained in it
      */
     Layer* clone();
+
+public:
+    // Serialize interface
+    void serialize(ObjectOutputStream& out) override;
+    void readSerialized(ObjectInputStream& in) override;
 
 private:
     vector<Element*> elements;
